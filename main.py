@@ -36,9 +36,9 @@ class DesktopPet(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         
         self.label = QLabel(self)
-        self.label.resize(FRAME_WIDTH, FRAME_HEIGHT)
+        self.label.resize(FRAME_WIDTH // 2, FRAME_HEIGHT // 2)
         
-        self.resize(FRAME_WIDTH, FRAME_HEIGHT)
+        self.resize(FRAME_WIDTH // 2, FRAME_HEIGHT // 2)
         
         screen = QApplication.primaryScreen().geometry()
         self.move(screen.width() // 2, screen.height() // 2)
@@ -65,7 +65,17 @@ class DesktopPet(QWidget):
         # Extract the specific frame
         rect = QRect(self.frame_index * FRAME_WIDTH, row * FRAME_HEIGHT, FRAME_WIDTH, FRAME_HEIGHT)
         frame_pixmap = self.spritesheet.copy(rect)
-        self.label.setPixmap(frame_pixmap)
+        
+        # Scale the size in half
+        scaled_pixmap = frame_pixmap.scaled(
+            FRAME_WIDTH // 2, 
+            FRAME_HEIGHT // 2, 
+            Qt.AspectRatioMode.KeepAspectRatio, 
+            Qt.TransformationMode.FastTransformation
+        )
+        self.label.setPixmap(scaled_pixmap)
+        self.label.resize(FRAME_WIDTH // 2, FRAME_HEIGHT // 2)
+        self.resize(FRAME_WIDTH // 2, FRAME_HEIGHT // 2)
 
     def update_pet(self):
         if self.is_roaming:
