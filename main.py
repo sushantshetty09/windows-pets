@@ -43,13 +43,19 @@ class DesktopPet(QWidget):
         screen = QApplication.primaryScreen().geometry()
         self.move(screen.width() // 2, screen.height() // 2)
         
-        # Roaming timer
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_pet)
-        self.timer.start(100) # 100ms per frame
+        # Animation timer
+        self.anim_timer = QTimer(self)
+        self.anim_timer.timeout.connect(self.update_frame)
+        self.anim_timer.start(100) # 100ms per frame
+
+        # Physics timer
+        self.physics_timer = QTimer(self)
+        self.physics_timer.timeout.connect(self.update_physics)
+        self.physics_timer.start(16) # ~60 FPS
         
-        self.dx = random.choice([-5, 5])
+        self.dx = random.choice([-3, 3])
         self.dy = 0
+        self.gravity = 1
         
         self.is_roaming = True
         self.update_frame()
@@ -77,18 +83,38 @@ class DesktopPet(QWidget):
         self.label.resize(FRAME_WIDTH // 2, FRAME_HEIGHT // 2)
         self.resize(FRAME_WIDTH // 2, FRAME_HEIGHT // 2)
 
-    def update_pet(self):
+    def update_physics(self):
         if self.is_roaming:
-            self.current_anim = "running-right" if self.dx > 0 else "running-left"
-            
             screen = QApplication.primaryScreen().geometry()
-            new_x = self.x() + self.dx
             
+            # Apply gravity
+            self.dy += self.gravity
+            
+            new_x = self.x() + self.dx
+            new_y = self.y() + self.dy
+            
+            # Floor collision (approx taskbar height is 40)
+            floor_y = screen.height() - 40 - self.height()
+            if new_y >= floor_y:
+                new_y = floor_y
+                self.dy = 0
+                
+                # 1% chance to jump when on the ground
+                if random.random() < 0.01:
+                    self.dy = -15
+            
+            # Wall collisions
             if new_x <= 0 or new_x + self.width() >= screen.width():
                 self.dx = -self.dx
+                new_x = self.x() + self.dx
             
-            self.move(self.x() + self.dx, self.y() + self.dy)
-        self.update_frame()
+            # Set animation state based on movement
+            if self.dy != 0:
+                self.current_anim = "jumping"
+            else:
+                self.current_anim = "running-right" if self.dx > 0 else "running-left"
+            
+            self.move(new_x, new_y)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -132,8 +158,18 @@ class DesktopPet(QWidget):
             # For now, append to a file to simulate IPC
             with open("pet_tasks.txt", "a") as f:
                 f.write(f"Task: {task}\n")
+                
+            # Start workflow transitions
+            QTimer.singleShot(3000, self.finish_task)
         else:
             self.is_roaming = True
+
+    def finish_task(self):
+        self.current_anim = "review"
+        QTimer.singleShot(2000, self.resume_roaming)
+
+    def resume_roaming(self):
+        self.is_roaming = True
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
