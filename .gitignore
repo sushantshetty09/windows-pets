@@ -1,0 +1,9 @@
+# Ignore the specific pet image used for local testing
+amma.png
+
+# Ignore task text files created by the pet
+pet_tasks.txt
+
+# Python standard ignores
+__pycache__/
+*.pyc
