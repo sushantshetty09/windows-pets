@@ -6,7 +6,10 @@ from PyQt6.QtGui import QPixmap, QCursor, QAction
 from PyQt6.QtCore import Qt, QTimer, QPoint, QRect
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SPRITESHEET_PATH = os.path.join(SCRIPT_DIR, "amma.png")
+DEFAULT_PET_PATH = os.path.join(SCRIPT_DIR, "pet.png")
+CUSTOM_PET_PATH = os.path.join(SCRIPT_DIR, "custom_pet.png")
+LEGACY_PET_PATH = os.path.join(SCRIPT_DIR, "amma.png")
+CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 FRAME_WIDTH = 192
 FRAME_HEIGHT = 208
 
@@ -25,13 +28,48 @@ ANIMATIONS = {
 class DesktopPet(QWidget):
     def __init__(self):
         super().__init__()
-        self.is_spritesheet = False  # Use single-image mode (amma.png)
-        image_path = sys.argv[1] if len(sys.argv) > 1 else SPRITESHEET_PATH
+        self.is_spritesheet = False  # Use single-image mode (pet.png or custom)
         
+        # Select the best available image path
+        image_path = None
+        
+        # 1. Command-line argument
+        if len(sys.argv) > 1:
+            image_path = sys.argv[1]
+            
+        # 2. Configured custom path from config.json
+        if not image_path and os.path.exists(CONFIG_PATH):
+            import json
+            try:
+                with open(CONFIG_PATH, "r") as f:
+                    config = json.load(f)
+                    cfg_path = config.get("custom_image_path")
+                    if cfg_path and os.path.exists(cfg_path):
+                        image_path = cfg_path
+            except Exception:
+                pass
+                
+        # 3. Legacy amma.png (user's personal image)
+        if not image_path and os.path.exists(LEGACY_PET_PATH):
+            image_path = LEGACY_PET_PATH
+            
+        # 4. Custom pet in directory
+        if not image_path and os.path.exists(CUSTOM_PET_PATH):
+            image_path = CUSTOM_PET_PATH
+            
+        # 5. Default pet (Antigravity)
+        if not image_path:
+            image_path = DEFAULT_PET_PATH
+
         if not os.path.exists(image_path):
-            QMessageBox.critical(None, "Missing Image", f"Could not find pet image at:\n{image_path}\n\nPlease place an 'amma.png' file in the folder or run with an image path argument.")
+            QMessageBox.critical(
+                None, 
+                "Missing Image", 
+                f"Could not find pet image at:\n{image_path}\n\nPlease ensure 'pet.png' is in the folder or run with a custom image path."
+            )
             sys.exit(1)
             
+        self.image_path = image_path
         self.spritesheet = QPixmap(image_path)
         
         self.current_anim = "idle"
@@ -161,6 +199,18 @@ class DesktopPet(QWidget):
 
         context_menu.addSeparator()
 
+        # Change Pet Image options
+        change_image_action = QAction("🖼️  Change Pet Image...", self)
+        change_image_action.triggered.connect(self.change_pet_image)
+        context_menu.addAction(change_image_action)
+
+        if self.image_path != DEFAULT_PET_PATH:
+            reset_image_action = QAction("🔄  Reset to Default Pet", self)
+            reset_image_action.triggered.connect(self.reset_to_default_pet)
+            context_menu.addAction(reset_image_action)
+
+        context_menu.addSeparator()
+
         # Snap to Position submenu
         snap_menu = QMenu("📌  Snap to Position", self)
         positions = {
@@ -236,6 +286,39 @@ class DesktopPet(QWidget):
 
     def resume_roaming(self):
         pass  # Roaming no longer auto-resumes; user controls it via menu
+
+    def change_pet_image(self):
+        from PyQt6.QtWidgets import QFileDialog
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Pet Image",
+            "",
+            "Images (*.png *.jpg *.jpeg *.bmp *.gif)"
+        )
+        if file_path:
+            import json
+            try:
+                with open(CONFIG_PATH, "w") as f:
+                    json.dump({"custom_image_path": file_path}, f)
+                
+                self.spritesheet = QPixmap(file_path)
+                self.image_path = file_path
+                self.update_frame()
+                QMessageBox.information(self, "Success", "Pet image updated successfully!")
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"Failed to save custom image config:\n{str(e)}")
+
+    def reset_to_default_pet(self):
+        if os.path.exists(CONFIG_PATH):
+            try:
+                os.remove(CONFIG_PATH)
+            except Exception:
+                pass
+        
+        self.spritesheet = QPixmap(DEFAULT_PET_PATH)
+        self.image_path = DEFAULT_PET_PATH
+        self.update_frame()
+        QMessageBox.information(self, "Success", "Reset to default Antigravity pet!")
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
